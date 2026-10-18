@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Personal input data (images, audio) and generated outputs (data/outputs: transcripts).
+# Keep the folder structure under data/ in git (via .gitkeep placeholders) but never
+# track anything inside it.
+data/**
+!data/**/
+!data/**/.gitkeep
