@@ -32,12 +32,9 @@ Quit the Q&A loop with: 'exit', 'quit' or Ctrl+C.
 import argparse
 import base64
 import io
-import os
 from pathlib import Path
 
-from dotenv import load_dotenv
-from openai import OpenAI
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 
 IMAGES_DIR = Path("data/images")  # all images live here
 MAX_SIDE = 1024  # longest side in pixels after resizing (768-1024 works well)

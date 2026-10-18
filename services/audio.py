@@ -32,13 +32,12 @@ Quit the Q&A loop with: 'exit', 'quit' or Ctrl+C.
 """
 
 import argparse
+from collections.abc import Iterator
 import base64
-import os
 import shutil
 import subprocess
 from pathlib import Path
 
-from dotenv import load_dotenv
 from openai import APIError, OpenAI
 
 AUDIO_DIR = Path("data/audio")  # all audio files live here
@@ -110,7 +109,7 @@ def split_into_chunks(wav: Path, workdir: Path, seconds: int = CHUNK_SECONDS) ->
     return sorted(workdir.glob("chunk_*.wav"))
 
 
-def iter_transcribe(src: Path):
+def iter_transcribe(src: Path) -> Iterator[dict]:
     from tempfile import TemporaryDirectory
     # The context manager cleans up on exhaustion, failure and generator.close().
     with TemporaryDirectory(prefix="openweights-audio-") as directory:

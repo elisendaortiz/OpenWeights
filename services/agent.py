@@ -49,12 +49,11 @@ Quit with: 'exit', 'quit' or Ctrl+C.
 """
 
 import asyncio
+from collections.abc import Iterator
 import json
-import os
 import shutil
 from contextlib import AsyncExitStack
 
-from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters, stdio_client
 from openai import APIError, AsyncOpenAI
 
@@ -294,7 +293,7 @@ async def _run_agent(messages, max_iterations, emit):
                 emit({'type': 'error', 'message': f'Stopped after {max_iterations} rounds of tool calls without a final answer.'})
 
 
-def run_agent_sync(messages: list[dict], max_iterations: int = MAX_ITERATIONS):
+def run_agent_sync(messages: list[dict], max_iterations: int = MAX_ITERATIONS) -> Iterator[dict]:
     from queue import Queue
     from threading import Event, Thread
 
@@ -327,7 +326,11 @@ def run_agent_sync(messages: list[dict], max_iterations: int = MAX_ITERATIONS):
         except asyncio.CancelledError:
             pass
         except BaseException as exc:
-            events.put({'type': 'error', 'message': f'Agent failed: {exc}'})
+            if isinstance(exc, APIError):
+                reason = f'Model request failed ({type(exc).__name__}). Check BASE_URL and MODEL tool support.'
+            else:
+                reason = f'Agent failed ({type(exc).__name__}). Check uvx and the MCP time server.'
+            events.put({'type': 'error', 'message': reason})
         finally:
             events.put(finished)
 

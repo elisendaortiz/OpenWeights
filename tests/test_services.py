@@ -103,3 +103,59 @@ def test_agent_close_cancels_owner(monkeypatch):
     next(gen)
     gen.close()
     assert closed.wait(1)
+
+
+@pytest.mark.parametrize('tool_arguments,cap', [('{"timezone":"Asia/Tokyo"}', 5), ('bad json', 5), ('{}', 1)])
+def test_agent_protocol(monkeypatch, tool_arguments, cap):
+    import asyncio
+    from contextlib import asynccontextmanager
+    from types import SimpleNamespace as NS
+    requests = []
+    tool_calls = []
+    call = NS(id='call-1', function=NS(name='get_current_time', arguments=tool_arguments))
+    class Message:
+        content = None
+        def __init__(self, calls):
+            self.tool_calls = calls
+        def model_dump(self, **kwargs):
+            return {'role': 'assistant', 'content': '', 'tool_calls': [
+                {'id': 'call-1', 'type': 'function', 'function': {'name': 'get_current_time', 'arguments': tool_arguments}}]}
+    async def create(**kwargs):
+        requests.append(list(kwargs['messages']))
+        message = Message([call] if len(requests) == 1 else [])
+        if len(requests) > 1:
+            message.content = 'It is noon.'
+        return NS(choices=[NS(message=message)])
+    class Session:
+        async def initialize(self): pass
+        async def list_tools(self):
+            return NS(tools=[NS(name='get_current_time', description='Time', input_schema={'type': 'object'})])
+        async def call_tool(self, name, arguments):
+            tool_calls.append(arguments)
+            return NS(content=[NS(type='text', text='12:00')], structured_content=None, is_error=False)
+    @asynccontextmanager
+    async def client(**kwargs):
+        yield NS(chat=NS(completions=NS(create=create)))
+    @asynccontextmanager
+    async def stdio(params):
+        yield (None, None)
+    @asynccontextmanager
+    async def session(*args):
+        yield Session()
+    monkeypatch.setattr(agent, 'AsyncOpenAI', client)
+    monkeypatch.setattr(agent, 'stdio_client', stdio)
+    monkeypatch.setattr(agent, 'ClientSession', session)
+    monkeypatch.setattr(agent, 'require_env', lambda name: 'test')
+    monkeypatch.setattr(agent.shutil, 'which', lambda name: '/test/uvx')
+    messages = [{'role': 'user', 'content': 'Tokyo time?'}]
+    events = []
+    asyncio.run(agent._run_agent(messages, cap, events.append))
+    assert len(messages) == 1  # tools stay internal to the run
+    assert events[0]['type'] == 'tool_call'
+    assert events[1]['type'] == 'tool_result'
+    assert events[-1]['type'] == ('error' if cap == 1 else 'final')
+    if cap > 1:
+        assert requests[1][-1]['tool_call_id'] == 'call-1'
+    if tool_arguments == 'bad json':
+        assert not tool_calls
+        assert 'Error:' in events[1]['content']
