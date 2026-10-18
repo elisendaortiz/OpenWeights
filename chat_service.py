@@ -1,7 +1,14 @@
-"""Minimal terminal chatbot that talks to a local Ollama server.
+"""Minimal terminal chatbot that talks to an OpenAI-compatible server.
 
-Uses the OpenAI client pointed at Ollama's OpenAI-compatible endpoint
-(http://localhost:11434/v1), which serves a local open-weights model.
+Uses the OpenAI client pointed at any OpenAI-compatible endpoint, such as
+Ollama locally (http://localhost:11434/v1) or vLLM in the cloud.
+
+Settings come from a `.env` file (see `.env.example`):
+  BASE_URL  OpenAI-compatible endpoint
+  MODEL     model name served by that endpoint
+  API_KEY   API key (Ollama ignores it, but the client library requires one)
+Nothing is hardcoded, so the same code can point at another server just by
+editing `.env`. Real environment variables take priority over the file.
 
 How it keeps memory: the model has no memory between calls, so the script
 keeps a `messages` list. Each turn it appends the user's message, sends the
@@ -13,18 +20,30 @@ Run with: uv run chat_service.py
 Quit with: 'exit', 'quit' or Ctrl+C.
 """
 
+import os
+
+from dotenv import load_dotenv
 from openai import OpenAI
 
-client = OpenAI(
-    base_url="http://localhost:11434/v1",
-    api_key="ollama",  # dummy value: Ollama ignores it, but the library requires one
-)
+load_dotenv()  # reads .env into os.environ; existing env vars are not overridden
 
-MODEL = "qwen2.5:1.5b"  # gemma4:e2b-it-qat
+
+def require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise SystemExit(f"Missing {name}. Copy .env.example to .env and set it.")
+    return value
+
+
+BASE_URL = require_env("BASE_URL")
+MODEL = require_env("MODEL")
+API_KEY = require_env("API_KEY")
+
+client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
 
 messages = []
 
-print(f"Chatting with {MODEL}. Type 'exit' or press Ctrl+C to quit.\n")
+print(f"Chatting with {MODEL} at {BASE_URL}. Type 'exit' or press Ctrl+C to quit.\n")
 
 while True:
     try:
