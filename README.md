@@ -2,7 +2,62 @@
 
 A library of small, self-contained examples of how to use open-weights models for different tasks. Every example talks to the model through an OpenAI-compatible API, so the same code runs against a local [Ollama](https://ollama.com) server today and can point at another server later (for example vLLM in the cloud) by changing only a settings file.
 
-More use cases will be added over time.
+## Local web playground
+
+A FastAPI backend and a hand-built, offline frontend bring all four services into one local workspace: **Chatbot**, **Images**, **Audio**, and **Agent**. Each panel keeps its own conversation in browser memory. There are no JavaScript frameworks, build tools, CDNs, or external frontend requests.
+
+[Demo GIF — record `docs/ui-demo.gif`](docs/README_GIF_TODO.md)
+
+After the setup below, run from the repository root:
+
+```bash
+uv run uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
+Open **http://127.0.0.1:8000**. Add `--reload` for development. Keep the `127.0.0.1` binding: this is a single-user local app with no authentication.
+
+- **Chatbot:** send with Enter; use Shift+Enter for a new line. Replies stream into the conversation. **Stop** keeps any partial answer.
+- **Images:** choose or drop a JPG, PNG or WebP (up to 10 MB). Ask about it, then follow up. Replacing or removing the attachment resets this panel. The first image message stays in history; no extra image message is added on follow-ups.
+- **Audio:** choose or drop an m4a, mp3, wav, ogg or aac (up to 50 MB), click **Transcribe**, and watch chunk progress. Expand the transcript, then ask questions about it. Answers use words in the transcript, not tone or non-speech sounds.
+- **Agent:** try “What time is it in Tokyo?” Expand tool-call chips to see arguments and results.
+
+Switching panels preserves their conversations; **New chat** clears only the current panel. Nothing is saved to localStorage. Reloading the page clears browser conversation state. Light/dark mode follows your system preference, and the sidebar becomes a top bar on small screens.
+
+Uploads are written under generated names in temporary directories and removed after completion, failure, or disconnect cleanup. UI uploads never enter `data/`. Only one model request runs at a time. Stop cancels the browser request immediately; an already-running synchronous model call or ffmpeg operation may finish before backend cleanup completes. The API will ask you to retry if that operation still occupies the model.
+
+The backend reads all model settings from `.env`. Changing `BASE_URL` to a compatible vLLM endpoint requires no UI or code changes. The selected model and server must support the input type; the text-only default in `.env.example` does not accept image or audio requests. This branch does not require Streamlit and retains the existing Pillow 13 dependency.
+
+**Memory:** On 8 GB machines, close heavy apps and watch Memory Pressure in Activity Monitor. Keep context and recordings short, and start a new chat to release old history. Use an already-installed model.
+
+### API overview
+
+All routes share the frontend's origin. Streaming responses use `text/event-stream` with `data: <JSON>` events separated by a blank line; POST streams are read with `fetch`.
+
+| Endpoint | Input | Output |
+| --- | --- | --- |
+| `GET /api/health` | None | `{ok, detail, model}` |
+| `POST /api/chat` | JSON `{messages: [...]}` | `delta` events, then `done` |
+| `POST /api/image/prepare` | Multipart `file`, `prompt` | Prepared OpenAI-format image message; no model call |
+| `POST /api/audio/transcribe` | Multipart `file` | Chunk `progress`, then `done` with transcript and context message |
+| `POST /api/agent` | JSON `{messages: [...]}` with plain user/assistant text | `tool_call`, `tool_result`, `final`, or `error` |
+
+The API is stateless: the browser sends the full history on each turn. Audio questions use `/api/chat` with the returned transcript context followed by conversation messages. Image history includes the first prepared image message. Invalid uploads return 400/415, oversized uploads return 413, invalid request bodies return 422, and stream failures produce an `error` event. Health checks run on page load, every 20 seconds, and after failed requests.
+
+### Tests
+
+```bash
+uv run pytest
+```
+
+Service and API tests use mocked model responses; no model download or running server is required. They cover image processing, path validation, chunking, tool protocols, streaming errors, upload limits and cleanup, and disconnect handling.
+
+An optional browser smoke test uses your installed Google Chrome with mocked services:
+
+```bash
+uv run --with playwright python tests/browser_smoke.py
+```
+
+It checks streaming and Stop, panel history, uploads, drag-and-drop, transcription, tools, error handling, and light/dark mobile layouts. Screenshots go to gitignored `.cache/browser/`. Playwright is only a test tool; it is not a runtime dependency.
 
 ## Use cases
 
@@ -131,7 +186,7 @@ Type `exit` or `quit`, or press Ctrl+C, to leave.
 ### Tips and limits
 
 - Small models make mistakes on images. Try a photo, a screenshot and an image with text to see where yours struggles.
-- Text in screenshots can blur when the image is shrunk to 1024 px. If the model misreads text, raise `MAX_SIDE` at the top of `image_service.py`.
+- Text in screenshots can blur when the image is shrunk to 1024 px. If the model misreads text, raise `MAX_SIDE` in `services/image.py`.
 - `MODEL` must support vision. Otherwise the server rejects the request or ignores the image.
 
 ## Use case 3: Audio
@@ -193,7 +248,7 @@ Type `exit` or `quit`, or press Ctrl+C, to leave. Try easy questions first ("Wha
 
 ### Adding more tools
 
-The MCP servers are listed in `SERVERS` at the top of `agent_timezone_service.py`. To give the agent more abilities, such as stock market data, add one more entry there. Their tools are merged into one list and each call is routed to the server that owns the tool. The loop stays the same.
+The MCP servers are listed in `SERVERS` in `services/agent.py`. To give the agent more abilities, such as stock market data, add one more entry there. Their tools are merged into one list and each call is routed to the server that owns the tool. The loop stays the same.
 
 ### Tips and limits
 

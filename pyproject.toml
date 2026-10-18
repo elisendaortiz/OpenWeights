@@ -3,15 +3,19 @@ name = "openweights"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "fastapi>=0.144.0",
     "mcp>=2.3.0",
     "ollama>=0.6.3",
     "openai>=3.35.1",
     "pillow>=13.0.0",
     "python-dotenv>=1.2.4",
+    "python-multipart>=0.0.32",
+    "uvicorn[standard]>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.1.1",
 ]
 

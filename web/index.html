@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>OpenWeights Playground</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 0 1-8 8H4l-1 2V11.5a8.5 8.5 0 0 1 17 0Z"/><path d="M7 9h9M7 13h6"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 4-6 5 7"/></symbol>
+    <symbol id="i-audio" viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></symbol>
+    <symbol id="i-agent" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5h16v-5"/></symbol>
+  </svg>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="OpenWeights Playground home"><span class="brand-mark">ow<span>·</span></span><span>OpenWeights<span class="brand-subtitle">Playground</span></span></a>
+      <div class="nav-heading">WORKSPACE</div>
+      <nav aria-label="Services">
+        <button class="nav-item active" data-panel="chat" aria-current="page"><svg><use href="#i-chat"/></svg>Chatbot<span class="nav-index">01</span></button>
+        <button class="nav-item" data-panel="image"><svg><use href="#i-image"/></svg>Images<span class="nav-index">02</span></button>
+        <button class="nav-item" data-panel="audio"><svg><use href="#i-audio"/></svg>Audio<span class="nav-index">03</span></button>
+        <button class="nav-item" data-panel="agent"><svg><use href="#i-agent"/></svg>Agent<span class="nav-index">04</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="status-card"><div class="status-label"><span id="status-dot" class="status-dot"></span><span id="status-label">Checking connection</span></div><div id="model-name" class="model-name">Loading model…</div><div class="status-note">Your model. Your workspace.</div></div>
+        <div class="local-note"><span class="local-dot"></span> Local workspace <span>v1.0</span></div>
+      </div>
+    </aside>
+    <main class="main-panel">
+      <header class="panel-header"><div><div class="eyebrow">OPENWEIGHTS / EXPLORE</div><h1 id="panel-title">Chatbot</h1><p id="panel-description">A little curiosity goes a long way.</p></div><button id="new-chat" class="secondary-button"><span aria-hidden="true">＋</span> New chat</button></header>
+      <div id="offline-banner" class="offline-banner" role="status" hidden>Cannot reach the model server. Is Ollama running?</div>
+      <section id="messages" class="messages" role="log" aria-live="polite" aria-label="Conversation" tabindex="0"></section>
+      <div class="composer-area">
+        <div id="attachment-area" hidden>
+          <div id="drop-zone" class="upload-card">
+            <svg aria-hidden="true"><use href="#i-upload"/></svg>
+            <div class="upload-description"><strong id="upload-title">Add a file</strong><span id="upload-hint">Choose a file or drop it here</span></div>
+            <img id="image-preview" class="thumbnail" alt="Attached image preview" hidden>
+            <button id="choose-file" class="secondary-button">Choose file</button>
+            <button id="remove-file" class="icon-button" aria-label="Remove attachment" hidden>×</button>
+            <input id="file-input" type="file" hidden>
+          </div>
+          <div id="audio-actions" hidden><button id="transcribe" class="accent-button" disabled>Transcribe</button><span id="audio-help">Transcribe first, then ask anything about the recording.</span></div>
+          <div id="transcription-progress" class="transcription-progress" role="status" hidden></div>
+          <details id="transcript" class="transcript" hidden><summary>Read transcript</summary><div id="transcript-text"></div></details>
+        </div>
+        <form id="composer" class="composer">
+          <label for="prompt" class="sr-only">Message</label>
+          <textarea id="prompt" rows="1" placeholder="Ask anything. Start a conversation."></textarea>
+          <button id="send" class="send-button" type="submit" aria-label="Send message"><svg aria-hidden="true"><use href="#i-arrow"/></svg><span id="send-label">Send</span></button>
+        </form>
+        <div class="composer-footer"><span id="panel-caption">Keep exploring. Models can make mistakes.</span><span class="keyboard-hint">Enter to send · Shift + Enter for a new line</span></div>
+        <div id="operation-status" class="operation-status" role="status"></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
