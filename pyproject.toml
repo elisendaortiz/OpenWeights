@@ -6,8 +6,9 @@ dependencies = [
     "mcp>=2.3.0",
     "ollama>=0.6.3",
     "openai>=3.35.1",
-    "pillow>=13.0.0",
+    "pillow>=12,<13",
     "python-dotenv>=1.2.4",
+    "streamlit>=1.36",
 ]
 
 [dependency-groups]

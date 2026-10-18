@@ -2,7 +2,40 @@
 
 A library of small, self-contained examples of how to use open-weights models for different tasks. Every example talks to the model through an OpenAI-compatible API, so the same code runs against a local [Ollama](https://ollama.com) server today and can point at another server later (for example vLLM in the cloud) by changing only a settings file.
 
-More use cases will be added over time.
+## Local web UI
+
+OpenWeights Playground provides **Chatbot**, **Images**, **Audio**, and **Agent** pages with separate conversations, streaming text replies, upload controls, and live time-tool results.
+
+[Demo GIF — record `docs/ui-demo.gif`](docs/README_GIF_TODO.md)
+
+After setup, start the UI from the repository root:
+
+```bash
+uv run streamlit run app.py
+```
+
+The browser opens at http://127.0.0.1:8501. The app binds only to `127.0.0.1`, accepts uploads up to 50 MB, and disables usage telemetry. The sidebar checks connectivity every 10 seconds on interaction. Each page has its own **New conversation** button; selecting a different upload resets that page's history.
+
+- **Chatbot:** send a message and ask follow-up questions.
+- **Images:** upload a JPG, PNG or WebP, then ask for a description. The original image message stays in history for follow-ups.
+- **Audio:** upload an m4a (or MP3, WAV, OGG, AAC), click **Transcribe**, watch chunk progress, then ask questions about the transcript. Answers use the transcript, not tone or non-speech sounds.
+- **Agent:** ask “What time is it in Tokyo?” to see MCP tool arguments, results, and the final answer.
+
+UI images are processed in memory. Audio uploads use generated temporary paths; uploads and converted chunks are removed on completion or failure. UI uploads never go into `data/`. Conversations last only for the browser session. The UI starts a fresh MCP session for each agent question; the CLI keeps its session open.
+
+**Memory:** On an 8 GB machine, close heavy apps and watch Memory Pressure in Activity Monitor. Keep conversations and recordings short; start a new conversation to release old context. Use only your existing model.
+
+The UI, like the CLIs, talks only to `BASE_URL`. Changing `.env` to a compatible vLLM server requires no code changes. The configured model/server must support the selected input type; the text-only default in `.env.example` cannot handle image or audio requests.
+
+The UI dependency requires Pillow below 13; this branch uses Pillow 12.x with the same image conversion and resizing behavior.
+
+### Tests
+
+```bash
+uv run pytest
+```
+
+Tests cover image processing, file validation, audio splitting and cleanup, agent cancellation, and UI interactions using mocked model responses.
 
 ## Use cases
 
@@ -131,7 +164,7 @@ Type `exit` or `quit`, or press Ctrl+C, to leave.
 ### Tips and limits
 
 - Small models make mistakes on images. Try a photo, a screenshot and an image with text to see where yours struggles.
-- Text in screenshots can blur when the image is shrunk to 1024 px. If the model misreads text, raise `MAX_SIDE` at the top of `image_service.py`.
+- Text in screenshots can blur when the image is shrunk to 1024 px. If the model misreads text, raise `MAX_SIDE` in `services/image.py`.
 - `MODEL` must support vision. Otherwise the server rejects the request or ignores the image.
 
 ## Use case 3: Audio
@@ -193,7 +226,7 @@ Type `exit` or `quit`, or press Ctrl+C, to leave. Try easy questions first ("Wha
 
 ### Adding more tools
 
-The MCP servers are listed in `SERVERS` at the top of `agent_timezone_service.py`. To give the agent more abilities, such as stock market data, add one more entry there. Their tools are merged into one list and each call is routed to the server that owns the tool. The loop stays the same.
+The MCP servers are listed in `SERVERS` in `services/agent.py`. To give the agent more abilities, such as stock market data, add one more entry there. Their tools are merged into one list and each call is routed to the server that owns the tool. The loop stays the same.
 
 ### Tips and limits
 
