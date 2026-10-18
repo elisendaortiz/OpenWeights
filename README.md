@@ -11,6 +11,7 @@ More use cases will be added over time.
 | 1 | [Chatbots](#use-case-1-chatbots) | `chat_service.py`, `chat_streaming_service.py` | Terminal chat that remembers the conversation | text |
 | 2 | [Image](#use-case-2-image) | `image_service.py` | Describe an image, then ask follow-up questions about it | vision |
 | 3 | [Audio](#use-case-3-audio) | `audio_service.py` | Transcribe a recording, then ask questions about the whole audio | audio |
+| 4 | [Agent (time)](#use-case-4-agent-time) | `agent_timezone_service.py` | Chat where the model answers time questions by calling tools on an MCP server | tools |
 
 ## Getting started
 
@@ -22,6 +23,7 @@ More use cases will be added over time.
   - macOS: `brew install ffmpeg`
   - Linux: `apt install ffmpeg`
   - Check it with `ffmpeg -version`.
+- **uvx**, only for the agent use case. It comes with uv, so there is nothing extra to install. It downloads and runs the MCP time server on demand, so the first run needs internet access. Check it with `uvx --version`.
 
 ### Install
 
@@ -60,8 +62,9 @@ The use cases need different model capabilities, and all scripts read the same `
 - **Chatbots** work with any chat model, including small text-only ones such as `qwen2.5:1.5b` (the default in `.env.example`).
 - **Image** needs a model with the `vision` capability.
 - **Audio** needs a model with the `audio` capability.
+- **Agent** needs a model with the `tools` capability (tool calling). Both `qwen2.5:1.5b` and `gemma4:e2b-it-qat` have it.
 
-`gemma4:e2b-it-qat` has both, so it is the model to use for use cases 2 and 3. Check what any model supports with:
+`gemma4:e2b-it-qat` has vision, audio and tools, so it covers use cases 2 to 4. Check what any model supports with:
 
 ```bash
 ollama show gemma4:e2b-it-qat      # look under "Capabilities"
@@ -160,6 +163,45 @@ The transcript is saved to `data/outputs/pigs.txt`. Type `exit` or `quit`, or pr
 - Try a 1-minute clip first, then a longer one, and check that chunk boundaries don't garble words.
 - The server behind `BASE_URL` must accept audio input (`input_audio`) and `MODEL` must support audio. If your server rejects it, point `.env` at one that does, for example llama-server. The code stays the same.
 
+## Use case 4: Agent (time)
+
+A chat where the model answers time questions by calling tools instead of guessing. The tools come from an [MCP](https://modelcontextprotocol.io) server, `mcp-server-time`, which provides `get_current_time` and `convert_time`. `agent_timezone_service.py` is the agent: it connects the model to the tools and runs the loop between them.
+
+**How it works:**
+
+1. Starts the MCP time server (`uvx mcp-server-time`) as a subprocess and talks to it over stdin/stdout with the MCP Python client. It lists the server's tools and prints their names at startup.
+2. Converts each MCP tool to the OpenAI `tools` format (name, description, JSON schema) and sends the list with every request. A short system prompt tells the model to use the tools for any time question and to use IANA timezone names such as `Asia/Tokyo`.
+3. If the reply contains `tool_calls`, runs each call through MCP, appends the assistant message and a `role: "tool"` message with the result (matching `tool_call_id`), and calls the model again. The model then writes the final answer.
+4. Repeats step 3 until the model replies without a tool call, with a cap of 5 rounds per question so a confused model cannot loop forever. This loop is what makes it an agent.
+5. If a tool call fails (unknown tool, invalid JSON arguments, an error from the server), the error is sent back to the model as the tool result so it can retry.
+6. Keeps the full `messages` history, so follow-ups work ("and in New York?", "what's the difference between them?").
+
+Every tool call and its result is printed, for example:
+
+```
+→ get_current_time(timezone="Asia/Tokyo")
+  ← {"timezone": "Asia/Tokyo", ...}
+```
+
+### Run
+
+```bash
+uv run python agent_timezone_service.py
+```
+
+Type `exit` or `quit`, or press Ctrl+C, to leave. Try easy questions first ("What time is it in Tokyo?"), then harder ones ("convert 3pm Singapore to London time", "what time is it in the capital of Peru?"), and check each answer against a real clock.
+
+### Adding more tools
+
+The MCP servers are listed in `SERVERS` at the top of `agent_timezone_service.py`. To give the agent more abilities, such as stock market data, add one more entry there. Their tools are merged into one list and each call is routed to the server that owns the tool. The loop stays the same.
+
+### Tips and limits
+
+- Small models are unreliable at tool calling. Watch the `→` lines to see when the model picks the wrong tool, mangles a timezone name (for example `Tokyo` instead of `Asia/Tokyo`) or ignores the tools.
+- `(no tool used)` means the model answered without calling a tool. That is fine for a follow-up that needs no tool, but a problem for a plain time question.
+- `MODEL` must support tool calling. Check for `tools` under capabilities with `ollama show <model>`.
+- Running `uvx mcp-server-time` by hand prints JSON validation errors. That is expected: the server speaks JSON over stdin/stdout and waits for an MCP client, not a human. Stop it with Ctrl+C. The script launches it for you.
+
 ## Using another server (for example vLLM)
 
 Because the scripts only use the OpenAI-compatible API, moving to another server means editing `.env` and nothing else:
@@ -170,7 +212,7 @@ MODEL=<the model name your server serves>
 API_KEY=<your key>
 ```
 
-The server and model must support whatever the use case needs (text, vision or audio).
+The server and model must support whatever the use case needs (text, vision, audio or tool calling).
 
 ## Troubleshooting
 
@@ -182,3 +224,5 @@ The server and model must support whatever the use case needs (text, vision or a
 | Image or audio ignored, or the request is rejected | `MODEL` lacks the `vision` or `audio` capability. Check with `ollama show <model>`. |
 | `Image not found` / `<name> not found in data/audio/` | The file isn't in `data/images/` or `data/audio/`, or you passed a path instead of just the name. |
 | `ffmpeg not found` | Install it (see Requirements) and check with `ffmpeg -version`. |
+| `uvx not found` / `Could not start MCP server 'time'` | `uvx` comes with uv, so check your uv install. The first run also needs internet access to download `mcp-server-time`. |
+| Agent: "The model server returned an error" | `MODEL` probably doesn't support tool calling. Check for `tools` under capabilities with `ollama show <model>`. |
