@@ -6,7 +6,7 @@ A library of small, self-contained examples of how to use open-weights models fo
 
 A FastAPI backend and a hand-built, offline frontend bring all four services into one local workspace: **Chatbot**, **Images**, **Audio**, and **Agent**. Each panel keeps its own conversation in browser memory. There are no JavaScript frameworks, build tools, CDNs, or external frontend requests.
 
-[Demo GIF — record `docs/ui-demo.gif`](docs/README_GIF_TODO.md)
+![OpenWeights Playground showing the Chatbot workspace](docs/playground.png)
 
 After the setup below, run from the repository root:
 
