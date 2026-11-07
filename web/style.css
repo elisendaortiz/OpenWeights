@@ -390,6 +390,24 @@ h1 {
   align-items: flex-end
 }
 
+.message-row.shopping-progress {
+  margin-bottom: 12px;
+  gap: 4px
+}
+
+.shopping-progress .message-label {
+  color: var(--accent)
+}
+
+.shopping-progress .bubble {
+  max-width: 92%;
+  padding: 9px 13px;
+  background: var(--surface-2, var(--surface));
+  box-shadow: none;
+  font-size: 12px;
+  line-height: 1.5
+}
+
 .message-label {
   font-size: 9px;
   text-transform: uppercase;

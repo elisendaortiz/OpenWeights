@@ -20,6 +20,7 @@ from services.audio import build_transcript_context, iter_transcribe, require_ff
 from services.chat import stream_chat
 from services.config import MODEL, check_server
 from services.image import build_image_message, prepare_image
+from services.shopping import run_shopping_sync
 
 app = FastAPI(title='OpenWeights Playground', docs_url=None, redoc_url=None)
 IMAGE_LIMIT = 10 * 1024 * 1024
@@ -61,6 +62,15 @@ class AgentConversation(Conversation):
     def plain_messages(cls, messages):
         if any(m['role'] not in {'user', 'assistant'} or not isinstance(m['content'], str) for m in messages):
             raise ValueError('Agent history must contain plain user and assistant text only.')
+        return messages
+
+
+class ShoppingConversation(Conversation):
+    @field_validator('messages')
+    @classmethod
+    def plain_messages(cls, messages):
+        if any(m['role'] not in {'user', 'assistant'} or not isinstance(m['content'], str) for m in messages):
+            raise ValueError('Shopping history must contain plain user and assistant text only.')
         return messages
 
 
@@ -226,6 +236,11 @@ def audio_transcribe(file: Annotated[UploadFile, File()]):
 @app.post('/api/agent')
 def agent(body: AgentConversation):
     return sse(one_request(run_agent_sync(body.messages)))
+
+
+@app.post('/api/shopping')
+def shopping(body: ShoppingConversation):
+    return sse(one_request(run_shopping_sync(body.messages)))
 
 
 app.mount('/', StaticFiles(directory=Path(__file__).resolve().parents[1] / 'web', html=True), name='web')

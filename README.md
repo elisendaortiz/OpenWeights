@@ -4,7 +4,7 @@ A library of small, self-contained examples of how to use open-weights models fo
 
 ## Local web playground
 
-A FastAPI backend and a hand-built, offline frontend bring all four services into one local workspace: **Chatbot**, **Images**, **Audio**, and **Agent**. Each panel keeps its own conversation in browser memory. There are no JavaScript frameworks, build tools, CDNs, or external frontend requests.
+A FastAPI backend and a hand-built, offline frontend bring five capabilities into one local workspace: **Chatbot**, **Images**, **Audio**, **Agent**, and **Shopping**. Each panel keeps its own conversation in browser memory. There are no JavaScript frameworks, build tools, CDNs, or external frontend requests.
 
 ![OpenWeights Playground showing the Chatbot workspace](docs/playground.png)
 
@@ -20,6 +20,7 @@ Open **http://127.0.0.1:8000**. Add `--reload` for development. Keep the `127.0.
 - **Images:** choose or drop a JPG, PNG or WebP (up to 10 MB). Ask about it, then follow up. Replacing or removing the attachment resets this panel. The first image message stays in history; no extra image message is added on follow-ups.
 - **Audio:** choose or drop an m4a, mp3, wav, ogg or aac (up to 50 MB), click **Transcribe**, and watch chunk progress. Expand the transcript, then ask questions about it. Answers use words in the transcript, not tone or non-speech sounds.
 - **Agent:** try “What time is it in Tokyo?” Expand tool-call chips to see arguments and results.
+- **Shopping:** ask the local model to prepare a grocery cart on FairPrice Singapore. The browser opens visibly and the agent searches the real website; it stops before checkout.
 
 Switching panels preserves their conversations; **New chat** clears only the current panel. Nothing is saved to localStorage. Reloading the page clears browser conversation state. Light/dark mode follows your system preference, and the sidebar becomes a top bar on small screens.
 
@@ -40,6 +41,7 @@ All routes share the frontend's origin. Streaming responses use `text/event-stre
 | `POST /api/image/prepare` | Multipart `file`, `prompt` | Prepared OpenAI-format image message; no model call |
 | `POST /api/audio/transcribe` | Multipart `file` | Chunk `progress`, then `done` with transcript and context message |
 | `POST /api/agent` | JSON `{messages: [...]}` with plain user/assistant text | `tool_call`, `tool_result`, `final`, or `error` |
+| `POST /api/shopping` | JSON `{messages: [...]}` with plain user/assistant text | Shopping progress, browser tool events, `final`, or `error` |
 
 The API is stateless: the browser sends the full history on each turn. Audio questions use `/api/chat` with the returned transcript context followed by conversation messages. Image history includes the first prepared image message. Invalid uploads return 400/415, oversized uploads return 413, invalid request bodies return 422, and stream failures produce an `error` event. Health checks run on page load, every 20 seconds, and after failed requests.
 
@@ -49,7 +51,7 @@ The API is stateless: the browser sends the full history on each turn. Audio que
 uv run pytest
 ```
 
-Service and API tests use mocked model responses; no model download or running server is required. They cover image processing, path validation, chunking, tool protocols, streaming errors, upload limits and cleanup, and disconnect handling.
+Service and API tests use mocked model responses; no model download or running server is required. They cover image processing, path validation, chunking, tool protocols, shopping batches and cart summaries, streaming errors, upload limits and cleanup, and disconnect handling.
 
 An optional browser smoke test uses your installed Google Chrome with mocked services:
 
@@ -67,6 +69,7 @@ It checks streaming and Stop, panel history, uploads, drag-and-drop, transcripti
 | 2 | [Image](#use-case-2-image) | `image_service.py` | Describe an image, then ask follow-up questions about it | vision |
 | 3 | [Audio](#use-case-3-audio) | `audio_service.py` | Transcribe a recording, then ask questions about the whole audio | audio |
 | 4 | [Agent (time)](#use-case-4-agent-time) | `agent_timezone_service.py` | Chat where the model answers time questions by calling tools on an MCP server | tools |
+| 5 | [Shopping agent](#use-case-5-shopping-agent) | Shopping panel in the local web playground | Navigate FairPrice Singapore and prepare a grocery cart | tools; vision preferred |
 
 ## Getting started
 
@@ -79,6 +82,7 @@ It checks streaming and Stop, panel history, uploads, drag-and-drop, transcripti
   - Linux: `apt install ffmpeg`
   - Check it with `ffmpeg -version`.
 - **uvx**, only for the agent use case. It comes with uv, so there is nothing extra to install. It downloads and runs the MCP time server on demand, so the first run needs internet access. Check it with `uvx --version`.
+- **Playwright Chromium**, only for the Shopping panel. Install its browser once with `uv run playwright install chromium`. FairPrice must be reachable from this computer.
 
 ### Install
 
@@ -118,6 +122,7 @@ The use cases need different model capabilities, and all scripts read the same `
 - **Image** needs a model with the `vision` capability.
 - **Audio** needs a model with the `audio` capability.
 - **Agent** needs a model with the `tools` capability (tool calling). Both `qwen2.5:1.5b` and `gemma4:e2b-it-qat` have it.
+- **Shopping** needs a model with `tools`; vision is preferred because the browser screenshot is the primary page observation. The agent can fall back to page text when image input is unavailable.
 
 `gemma4:e2b-it-qat` has vision, audio and tools, so it covers use cases 2 to 4. Check what any model supports with:
 
@@ -256,6 +261,37 @@ The MCP servers are listed in `SERVERS` in `services/agent.py`. To give the agen
 - `(no tool used)` means the model answered without calling a tool. That is fine for a follow-up that needs no tool, but a problem for a plain time question.
 - `MODEL` must support tool calling. Check for `tools` under capabilities with `ollama show <model>`.
 - Running `uvx mcp-server-time` by hand prints JSON validation errors. That is expected: the server speaks JSON over stdin/stdout and waits for an MCP client, not a human. Stop it with Ctrl+C. The script launches it for you.
+
+## Use case 5: Shopping agent
+
+The Shopping panel uses the local model to navigate the real [FairPrice Singapore](https://www.fairprice.com.sg/) website and prepare a grocery cart. FairPrice is the only supported supermarket in this example. The Playwright-controlled Chromium browser is visible while the agent works, so the website navigation can be seen.
+
+Send the agent a specific shopping list in chat. It searches for the requested items, adds confirmed matches to the cart, and reports the outcome. If FairPrice asks for a postal code, the agent asks for it in chat. If that code returns multiple delivery addresses, it shows the choices and waits for you to select one. Lists are processed in groups of five; when an item has no direct match, the agent reports the closest option and waits for your decision before adding a substitute. A green check marks an item added as the direct choice.
+
+This demo only prepares the cart. It does not log in, use credentials or payment details, or check out. Review the cart and complete any purchase yourself on FairPrice.
+
+### Run
+
+Install the Playwright browser once, if you have not already:
+
+```bash
+uv run playwright install chromium
+```
+
+Start the local playground and open its Shopping panel:
+
+```bash
+uv run uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+
+### Current status and next experiments
+
+The current model, `gemma4:e2b-it-qat`, is very slow for screenshot-based browser decisions in this setup. FairPrice navigation, product search, and the postal-code address choices have been checked, but the full product-selection and cart-preparation flow has not been fully tested with this model.
+
+Future experiments:
+
+- Try a model that does not use images, relying on the browser's readable page and control descriptions instead.
+- Try a larger open-weights model hosted somewhere other than this laptop, with its weights stored on that machine and the playground pointed to it through the OpenAI-compatible `BASE_URL` configuration.
 
 ## Using another server (for example vLLM)
 
