@@ -4,6 +4,7 @@ const panels = {
   image: {title: 'Images', description: 'A fresh perspective on what you see.', icon: 'image', greeting: 'There’s more to the picture.', hint: 'Bring a photo, a screenshot, or something that caught your eye. Let’s take a closer look.', placeholder: 'Ask something about the image, for example: Describe this image.', caption: 'Your image stays in this conversation. Models can miss details.'},
   audio: {title: 'Audio', description: 'Turn a recording into a conversation.', icon: 'audio', greeting: 'Listen. Transcribe. Explore.', hint: 'Add a recording and turn spoken words into a transcript you can ask questions about.', placeholder: 'Ask a question about the audio, for example: Summarize this audio.', caption: 'Answers use the transcript only; tone and non-speech sounds are not heard.'},
   agent: {title: 'Agent', description: 'A small assistant with a sense of time.', icon: 'agent', greeting: 'The right tool for the moment.', hint: 'Ask about time around the world. Watch your model call tools and work with the results.', placeholder: 'What time is it in Tokyo?', caption: 'Uses the MCP time server (uvx mcp-server-time). Try: What time is it in Tokyo?', suggestions: ['What time is it in Tokyo?', 'What time is it in London?']},
+  shopping: {title: 'Shopping', description: 'Build a grocery cart on FairPrice.', icon: 'shopping', greeting: 'Let’s get your FairPrice list started.', hint: 'Hi! FairPrice is the only supermarket I support for now. I can add items to your cart, but I can’t log in or check out. Send me your shopping list, as specifically as possible. For example: “oat milk, 1 L, around $4; frozen chicken, 1 kg.”', placeholder: 'Tell me what you’d like in your FairPrice cart.', caption: 'FairPrice only · cart additions only · you review and check out.'},
 };
 const freshState = () => ({messages: [], extra: {}, views: [], draft: ''});
 const state = Object.fromEntries(Object.keys(panels).map((key) => [key, freshState()]));
@@ -78,8 +79,8 @@ function renderHistory() {
         messageList.append(details);
         continue;
       }
-      const row = element('div', `message-row ${view.kind}`);
-      row.append(element('div', 'message-label', view.kind === 'user' ? 'You' : view.kind === 'error' ? 'Something went wrong' : 'OpenWeights'));
+      const row = element('div', `message-row ${view.kind === 'progress' ? 'shopping-progress' : view.kind}`);
+      row.append(element('div', 'message-label', view.kind === 'user' ? 'You' : view.kind === 'error' ? 'Something went wrong' : view.kind === 'progress' ? 'Shopping progress' : 'OpenWeights'));
       const bubble = element('div', 'bubble');
       if (view.waiting && !view.text) {
         const typing = element('div', 'typing');
@@ -300,7 +301,8 @@ $('#composer').addEventListener('submit', async (event) => {
     userAdded = true;
     if (current === panel) renderAttachments();
     const messages = panel === 'audio' ? [panelState.extra.context, ...panelState.messages] : panelState.messages;
-    await streamSSE(panel === 'agent' ? '/api/agent' : '/api/chat', {
+    const endpoint = panel === 'agent' ? '/api/agent' : panel === 'shopping' ? '/api/shopping' : '/api/chat';
+    await streamSSE(endpoint, {
       headers: {'Content-Type': 'application/json'}, body: JSON.stringify({messages}),
     }, (data) => {
       if (data.type === 'error') throw new Error(data.message);
@@ -308,6 +310,7 @@ $('#composer').addEventListener('submit', async (event) => {
       if (data.type === 'done') terminal = true;
       if (data.type === 'tool_call') {
         usedTool = true;
+        if (panel === 'shopping') return;
         latestTool = {kind: 'tool', name: data.name, arguments: data.arguments, open: true};
         // Put tool activity before the answer, retaining it when switching panels.
         panelState.views.splice(panelState.views.indexOf(replyView), 0, latestTool);
@@ -317,10 +320,13 @@ $('#composer').addEventListener('submit', async (event) => {
         latestTool.result = data.content;
         if (current === panel) renderHistory();
       }
+      if (data.type === 'progress' && panel === 'shopping') {
+        appendView(panel, {kind: 'progress', text: data.text});
+      }
       if (data.type === 'final') {
         terminal = true;
         answer = data.content;
-        if (!usedTool) replyView.note = '(no tool was used)';
+        if (!usedTool && panel !== 'shopping') replyView.note = '(no tool was used)';
         updateAnswer(panel, replyView, answer);
       }
     }, signal);

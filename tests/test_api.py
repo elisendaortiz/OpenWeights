@@ -29,7 +29,7 @@ def test_health_and_static(client, monkeypatch):
     page = client.get('/')
     assert page.status_code == 200
     assert 'OpenWeights Playground' in page.text
-    assert all(label in page.text for label in ['Chatbot', 'Images', 'Audio', 'Agent'])
+    assert all(label in page.text for label in ['Chatbot', 'Images', 'Audio', 'Agent', 'Shopping'])
     assert client.get('/app.js').status_code == 200
     assert client.get('/style.css').status_code == 200
     assert client.get('/.env').status_code == 404

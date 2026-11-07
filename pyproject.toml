@@ -8,6 +8,7 @@ dependencies = [
     "ollama>=0.6.3",
     "openai>=3.35.1",
     "pillow>=13.0.0",
+    "playwright>=1.64.1",
     "python-dotenv>=1.2.4",
     "python-multipart>=0.0.32",
     "uvicorn[standard]>=0.54.0",
